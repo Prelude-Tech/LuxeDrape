@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const Product = require('../models/Product.model');
+const { getUploadsDir } = require('../utils/uploadsPath');
 
 /**
  * Helper: resolve the absolute path of an image given its stored image_path value.
@@ -11,7 +12,7 @@ const Product = require('../models/Product.model');
 const resolveImagePath = (imagePath) => {
   if (!imagePath) return null;
   const filename = path.basename(imagePath);
-  return path.join(__dirname, '../../public/uploads', filename);
+  return path.join(getUploadsDir(), filename);
 };
 
 /**

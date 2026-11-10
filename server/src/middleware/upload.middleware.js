@@ -1,12 +1,7 @@
 'use strict';
 
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../../public/uploads');
-fs.mkdirSync(uploadsDir, { recursive: true });
+const { ensureUploadsDir } = require('../utils/uploadsPath');
 
 /**
  * Sanitize a filename:
@@ -22,7 +17,7 @@ const sanitizeFilename = (filename) => {
 // Disk storage configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadsDir);
+    cb(null, ensureUploadsDir());
   },
   filename: (req, file, cb) => {
     const sanitized = sanitizeFilename(file.originalname);

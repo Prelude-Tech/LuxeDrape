@@ -6,21 +6,19 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const rateLimit = require('express-rate-limit');
-const path = require('path');
-const fs = require('fs');
 
 const connectDB = require('./config/db');
 const errorHandler = require('./utils/errorHandler');
+const { ensureUploadsDir } = require('./utils/uploadsPath');
 const authRoutes = require('./routes/auth.routes');
 const productRoutes = require('./routes/product.routes');
 const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ─── Ensure uploads directory exists ─────────────────────────────────────────
-const uploadsDir = path.join(__dirname, '../public/uploads');
-fs.mkdirSync(uploadsDir, { recursive: true });
+const uploadsDir = ensureUploadsDir();
 
 // ─── Security Middleware ──────────────────────────────────────────────────────
 app.use(
@@ -29,9 +27,13 @@ app.use(
   })
 );
 
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map((origin) => origin.trim()).filter(Boolean)
+  : null;
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins : true,
     credentials: true, // allow cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -46,10 +48,20 @@ app.use(cookieParser());
 // ─── Static Files (uploaded images) ──────────────────────────────────────────
 app.use('/uploads', express.static(uploadsDir));
 
+// ─── Database Connection Middleware (Serverless-safe) ────────────────────────
+const ensureDbMiddleware = async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/auth', ensureDbMiddleware, authRoutes);
+app.use('/api/products', ensureDbMiddleware, productRoutes);
+app.use('/api/admin', ensureDbMiddleware, adminRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -69,7 +81,7 @@ app.use((req, res) => {
 // ─── Global Error Handler ─────────────────────────────────────────────────────
 app.use(errorHandler);
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
+// ─── Start Server (Local / Traditional Host) ─────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
@@ -81,5 +93,9 @@ const startServer = async () => {
   });
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;
 
